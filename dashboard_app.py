@@ -9,8 +9,11 @@ import time
 import yaml
 import asyncio
 import subprocess
+import signal
 from datetime import datetime, timedelta
 from pathlib import Path
+
+import psutil
 
 import streamlit as st
 import pandas as pd
@@ -38,23 +41,41 @@ ENV_PATH = ".env"
 RUNTIME_DIR = Path("runtime")
 RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 HEARTBEAT_PATH = RUNTIME_DIR / "worker_heartbeat.json"
+PID_FILE = RUNTIME_DIR / "worker.pid"
 
 
 # ------------------------------------------------------------------------------
 # Утилиты
 # ------------------------------------------------------------------------------
-def is_worker_process_running() -> bool:
-    """Проверить, запущен ли worker.py как отдельный процесс."""
+def get_worker_pid():
     try:
-        out = subprocess.run(
-            ["pgrep", "-f", r"python .*worker.py"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-        )
-        return out.returncode == 0
+        return int(PID_FILE.read_text().strip())
     except Exception:
-        return False
+        return None
+
+
+def is_worker_running() -> bool:
+    pid = get_worker_pid()
+    return pid is not None and psutil.pid_exists(pid)
+
+
+def start_worker() -> None:
+    with open("worker.log", "ab") as log:
+        proc = subprocess.Popen([sys.executable, "worker.py"], stdout=log, stderr=subprocess.STDOUT)
+    PID_FILE.write_text(str(proc.pid))
+
+
+def stop_worker() -> None:
+    pid = get_worker_pid()
+    if pid and psutil.pid_exists(pid):
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    try:
+        PID_FILE.unlink()
+    except FileNotFoundError:
+        pass
 
 
 def read_heartbeat():
@@ -174,18 +195,13 @@ with tabs[0]:
     with col_refresh:
         refresh_btn = st.button("🔄 Обновить статус", use_container_width=True, key="state_refresh")
 
-    # Кнопки управления процессом
     if run_btn:
-        # мягкий рестарт
-        os.system("pkill -f 'python worker.py' || true")
-        time.sleep(0.3)
-        cmd = f"nohup {sys.executable} worker.py > worker.log 2>&1 &"
-        os.system(cmd)
+        start_worker()
         time.sleep(0.8)
         st.rerun()
 
     if stop_btn:
-        os.system("pkill -f 'python worker.py' || true")
+        stop_worker()
         time.sleep(0.6)
         st.rerun()
 
@@ -195,13 +211,13 @@ with tabs[0]:
     # Статус
     status_col1, status_col2, status_col3 = st.columns([1, 1, 2])
     hb = read_heartbeat()
-    proc = is_worker_process_running()
+    proc = is_worker_running()
 
     with status_col1:
         if proc:
-            st.success("Worker: RUNNING", icon="✅")
+            st.markdown("<span style='color: green;'>Воркер запущен</span>", unsafe_allow_html=True)
         else:
-            st.error("Worker: STOPPED", icon="⛔")
+            st.markdown("<span style='color: red;'>Воркер остановлен</span>", unsafe_allow_html=True)
 
     with status_col2:
         if hb:
