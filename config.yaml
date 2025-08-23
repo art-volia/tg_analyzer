@@ -1,0 +1,28 @@
+behavior:
+  include_dialogs: true
+  incremental: true
+  use_takeout_for_bulk_exports: false
+  warm_up_mode: true
+chats:
+- '@businessinromania'
+- '@ua_mom_bucharest'
+- '@odessaromania'
+limits:
+  batch_size_range:
+  - 60
+  - 120
+  max_api_calls_per_hour: 400
+  micro_pause_every_n_msgs:
+  - 30
+  - 50
+  micro_pause_ms:
+  - 200
+  - 500
+  pause_between_batches_sec:
+  - 10.5
+  - 3.05
+  pause_between_chats_sec:
+  - 6.0
+  - 15.0
+storage:
+  log_path: logs/app.log

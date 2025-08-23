@@ -1,0 +1,4 @@
+  File "/root/tg-analyzer/worker.py", line 150
+    stmt = pg_insert(Message.__table__).values(**vals).on_conflict_do_nothing(index_elements=[\x27chat_id\x27, \x27message_id\x27])
+                                                                                               ^
+SyntaxError: unexpected character after line continuation character

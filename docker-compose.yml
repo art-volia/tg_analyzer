@@ -1,0 +1,22 @@
+version: "3.9"
+services:
+  dashboard:
+    build: .
+    container_name: tg-dashboard
+    env_file:
+      - .env
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./:/app
+    restart: unless-stopped
+
+  worker:
+    build: .
+    container_name: tg-worker
+    env_file:
+      - .env
+    command: ["python", "worker.py"]
+    volumes:
+      - ./:/app
+    restart: unless-stopped
