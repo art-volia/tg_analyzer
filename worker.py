@@ -29,7 +29,6 @@ from db import (
     AccountChat, ChatBot, DirectPeer
 )
 from utils import setup_logger, sleep_range, jitter_ms
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 # --- Константы/пути ---
 BUCHAREST_TZ = ZoneInfo("Europe/Bucharest")
@@ -147,7 +146,7 @@ async def ensure_chat_record(sess, entity, account_id: int):
     sess.commit()
 
 def insert_message_no_conflict(sess, **vals):
-    stmt = pg_insert(Message.__table__).values(**vals).on_conflict_do_nothing(index_elements=[\x27chat_id\x27, \x27message_id\x27])
+    stmt = pg_insert(Message.__table__).values(**vals).on_conflict_do_nothing(index_elements=['chat_id', 'message_id'])
     sess.exec(stmt)
 
 async def save_messages(sess, entity, msgs, account_id: int):

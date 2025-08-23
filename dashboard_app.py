@@ -7,9 +7,6 @@ import math
 import json
 import time
 import yaml
-from pathlib import Path
-from datetime import datetime
-CFG_PATH = "config.yaml"
 import asyncio
 import subprocess
 from datetime import datetime, timedelta
