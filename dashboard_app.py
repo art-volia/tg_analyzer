@@ -42,6 +42,9 @@ RUNTIME_DIR = Path("runtime")
 RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 HEARTBEAT_PATH = RUNTIME_DIR / "worker_heartbeat.json"
 PID_FILE = RUNTIME_DIR / "worker.pid"
+DICT_COUNTRIES_PATH = "countries.yaml"
+DICT_LANGUAGES_PATH = "languages.yaml"
+DICT_TOPICS_PATH = "topics.yaml"
 
 
 # ------------------------------------------------------------------------------
@@ -136,6 +139,20 @@ def save_env(values: dict) -> None:
         f.writelines(lines)
 
 
+def load_list(path: str) -> list[str]:
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or []
+            if isinstance(data, list):
+                return data
+    return []
+
+
+def save_list(path: str, items: list[str]) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(items, f, allow_unicode=True, sort_keys=False)
+
+
 # ------------------------------------------------------------------------------
 # Диалоги (получение списка из Telegram)
 # ------------------------------------------------------------------------------
@@ -177,6 +194,7 @@ tabs = st.tabs([
     "Окна/Курсоры",     # 6
     "ENV (.env)",       # 7
     "Экспорт",          # 8
+    "Справочники",      # 9
 ])
 
 # ------------------------------------------------------------------------------
@@ -686,15 +704,18 @@ with tabs[4]:
 # ------------------------------------------------------------------------------
 with tabs[5]:
     st.subheader("Справочник чатов")
+    countries_list = load_list(DICT_COUNTRIES_PATH)
+    languages_list = load_list(DICT_LANGUAGES_PATH)
+    topics_list_all = load_list(DICT_TOPICS_PATH)
 
     # Фильтры
     col1, col2, col3 = st.columns(3)
     with col1:
         f_type = st.selectbox("Тип", ["любой", "канал", "группа", "личка"], key="dict_type")
     with col2:
-        f_country = st.text_input("Страна", key="dict_country")
+        f_country = st.selectbox("Страна", ["любой"] + countries_list, key="dict_country")
     with col3:
-        f_lang = st.text_input("Язык", key="dict_lang")
+        f_lang = st.selectbox("Язык", ["любой"] + languages_list, key="dict_lang")
 
     with get_session() as sess:
         q = select(Chat)
@@ -718,9 +739,9 @@ with tabs[5]:
             topics_str = ", ".join([t[0] for t in topics]) if topics else ""
             langs_str = ", ".join([l[0] for l in langs]) if langs else ""
 
-            if f_country and f_country.lower() not in country.lower():
+            if f_country != "любой" and f_country.lower() not in country.lower():
                 continue
-            if f_lang and (not langs_str or f_lang.lower() not in langs_str.lower()):
+            if f_lang != "любой" and (not langs_str or f_lang.lower() not in langs_str.lower()):
                 continue
 
             rows.append({
@@ -759,28 +780,45 @@ with tabs[5]:
                         topics = sess.exec(select(ChatTopic.topic).where(ChatTopic.chat_id == chat.chat_id)).all()
                         langs  = sess.exec(select(ChatLanguage.language).where(ChatLanguage.chat_id == chat.chat_id)).all()
 
-                        in_country = st.text_input("Страна", value=(meta.country if meta else ""), key="dict_edit_country")
-                        in_topics  = st.text_input("Темы (через запятую)", value=", ".join([t[0] for t in topics]), key="dict_edit_topics")
-                        in_langs   = st.text_input("Языки (через запятую)", value=", ".join([l[0] for l in langs]), key="dict_edit_langs")
+                        sel_country_opts = ["-"] + countries_list
+                        idx = sel_country_opts.index(meta.country) if meta and meta.country in countries_list else 0
+                        in_country = st.selectbox(
+                            "Страна",
+                            sel_country_opts,
+                            index=idx,
+                            key="dict_edit_country",
+                        )
+                        in_topics = st.multiselect(
+                            "Темы",
+                            topics_list_all,
+                            default=[t[0] for t in topics],
+                            key="dict_edit_topics",
+                        )
+                        in_langs = st.multiselect(
+                            "Языки",
+                            languages_list,
+                            default=[l[0] for l in langs],
+                            key="dict_edit_langs",
+                        )
 
                         if st.button("💾 Сохранить изменения", key="dict_save"):
                             # 1) country (upsert)
                             if not meta:
-                                meta = ChatMeta(chat_id=chat.chat_id, country=in_country.strip() or None)
+                                meta = ChatMeta(chat_id=chat.chat_id, country=(in_country if in_country != "-" else None))
                             else:
-                                meta.country = in_country.strip() or None
+                                meta.country = in_country if in_country != "-" else None
                             sess.add(meta)
                             sess.commit()
 
                             # 2) topics — сначала удаляем все, затем вставляем новые
                             sess.exec(delete(ChatTopic).where(ChatTopic.chat_id == chat.chat_id))
-                            for t in [x.strip() for x in in_topics.split(",") if x.strip()]:
+                            for t in in_topics:
                                 sess.add(ChatTopic(chat_id=chat.chat_id, topic=t))
                             sess.commit()
 
                             # 3) languages — аналогично
                             sess.exec(delete(ChatLanguage).where(ChatLanguage.chat_id == chat.chat_id))
-                            for l in [x.strip() for x in in_langs.split(",") if x.strip()]:
+                            for l in in_langs:
                                 sess.add(ChatLanguage(chat_id=chat.chat_id, language=l))
                             sess.commit()
 
@@ -864,3 +902,46 @@ with tabs[8]:
             key="export_download_btn",
             help="CSV в UTF-8. Открой в Excel/Google Sheets.",
         )
+
+
+# ------------------------------------------------------------------------------
+# 9) СПРАВОЧНИКИ
+# ------------------------------------------------------------------------------
+with tabs[9]:
+    st.subheader("Справочники")
+
+    countries = load_list(DICT_COUNTRIES_PATH)
+    languages = load_list(DICT_LANGUAGES_PATH)
+    topics = load_list(DICT_TOPICS_PATH)
+
+    countries_in = st.text_area(
+        "Страны (по одной на строку)",
+        value="\n".join(countries),
+        key="ref_countries",
+    )
+    languages_in = st.text_area(
+        "Языки (по одной на строку)",
+        value="\n".join(languages),
+        key="ref_languages",
+    )
+    topics_in = st.text_area(
+        "Темы (по одной на строку)",
+        value="\n".join(topics),
+        key="ref_topics",
+    )
+
+    if st.button("💾 Сохранить справочники", key="ref_save"):
+        save_list(
+            DICT_COUNTRIES_PATH,
+            [x.strip() for x in countries_in.splitlines() if x.strip()],
+        )
+        save_list(
+            DICT_LANGUAGES_PATH,
+            [x.strip() for x in languages_in.splitlines() if x.strip()],
+        )
+        save_list(
+            DICT_TOPICS_PATH,
+            [x.strip() for x in topics_in.splitlines() if x.strip()],
+        )
+        st.success("Справочники сохранены.")
+        st.rerun()
