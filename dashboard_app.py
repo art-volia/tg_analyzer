@@ -521,117 +521,165 @@ with tabs[3]:
 with tabs[4]:
     st.subheader("Просмотр БД: сообщения по чатам")
 
-    # Безопасная инициализация пагинации
+    # Безопасная инициализация и хранение состояний
     st.session_state.setdefault("browser_page", 1)
+    st.session_state.setdefault("browser_filters", {})
+    st.session_state.setdefault("browser_run_query", False)
 
-    # Фильтры
-    col_top1, col_top2, col_top3, col_top4 = st.columns([1, 1, 1, 1])
-    with col_top1:
-        kind = st.selectbox("Тип", ["любой", "канал", "группа", "личка"], key="db_kind")
-    with col_top2:
-        date_from = st.date_input("С даты", value=None, key="db_date_from")
-    with col_top3:
-        date_to = st.date_input("По дату", value=None, key="db_date_to")
-    with col_top4:
-        per_page = st.number_input("На страницу", min_value=10, max_value=500, value=100, step=10, key="db_per_page")
-
-    q = st.text_input("Поиск по тексту (LIKE, без регистра)", key="db_text_query")
-
+    # Получить список чатов для селекта
     with get_session() as sess:
         chats_q = select(Chat).order_by(Chat.title)
         chats = sess.exec(chats_q).all()
     chat_map = {f"{c.title or c.chat_id} (id={c.chat_id})": c.chat_id for c in chats}
-    chat_label = st.selectbox("Выберите чат", ["(не выбран)"] + list(chat_map.keys()), key="db_chat_select")
-    chat_id = chat_map.get(chat_label) if chat_label != "(не выбран)" else None
 
-    st.divider()
-    page = st.number_input("Страница", min_value=1, value=int(st.session_state.get("browser_page", 1)), step=1, key="db_page")
-    if st.button("Применить фильтры", key="db_apply_filters"):
+    # Форма фильтров
+    with st.form("db_browser_form"):
+        col_top1, col_top2, col_top3, col_top4 = st.columns([1, 1, 1, 1])
+        with col_top1:
+            kind = st.selectbox("Тип", ["любой", "канал", "группа", "личка"], key="db_kind")
+        with col_top2:
+            date_from = st.date_input("С даты", value=None, key="db_date_from")
+        with col_top3:
+            date_to = st.date_input("По дату", value=None, key="db_date_to")
+        with col_top4:
+            per_page = st.number_input("На страницу", min_value=10, max_value=500, value=100, step=10, key="db_per_page")
+
+        q = st.text_input("Поиск по тексту (LIKE, без регистра)", key="db_text_query")
+
+        chat_label = st.selectbox("Выберите чат", ["(не выбран)"] + list(chat_map.keys()), key="db_chat_select")
+        chat_id = chat_map.get(chat_label) if chat_label != "(не выбран)" else None
+
+        st.divider()
+        page = st.number_input(
+            "Страница",
+            min_value=1,
+            value=int(st.session_state.get("browser_page", 1)),
+            step=1,
+            key="db_page",
+        )
+        submitted = st.form_submit_button("Показать сообщения")
+
+    if submitted:
+        st.session_state["browser_filters"] = {
+            "kind": kind,
+            "date_from": date_from,
+            "date_to": date_to,
+            "per_page": per_page,
+            "q": q,
+            "chat_id": chat_id,
+        }
         st.session_state["browser_page"] = int(page)
+        st.session_state["browser_run_query"] = True
 
-    # WHERE-условия
-    where = []
-    if chat_id:
-        where.append(Message.chat_id == chat_id)
+    if st.session_state.get("browser_run_query"):
+        filters = st.session_state.get("browser_filters", {})
 
-    if kind != "любой":
-        if kind == "канал":
-            where.append(Chat.is_channel == True)
-        elif kind == "группа":
-            where.append(Chat.is_group == True)
-        elif kind == "личка":
-            where.append((Chat.is_channel == False) & (Chat.is_group == False))
+        kind = filters.get("kind", "любой")
+        date_from = filters.get("date_from")
+        date_to = filters.get("date_to")
+        per_page = filters.get("per_page", 100)
+        q = filters.get("q")
+        chat_id = filters.get("chat_id")
 
-    def to_iso(d):
-        return datetime(d.year, d.month, d.day)
+        # WHERE-условия
+        where = []
+        if chat_id:
+            where.append(Message.chat_id == chat_id)
 
-    if date_from:
-        where.append(Message.date >= to_iso(date_from).isoformat())
-    if date_to:
-        where.append(Message.date < (to_iso(date_to) + timedelta(days=1)).isoformat())
+        if kind != "любой":
+            if kind == "канал":
+                where.append(Chat.is_channel == True)
+            elif kind == "группа":
+                where.append(Chat.is_group == True)
+            elif kind == "личка":
+                where.append((Chat.is_channel == False) & (Chat.is_group == False))
 
-    if q:
-        where.append(func.lower(Message.text).like(f"%{q.lower()}%"))
+        def to_iso(d):
+            return datetime(d.year, d.month, d.day)
 
-    offset = (int(st.session_state.get("browser_page", 1)) - 1) * int(per_page)
+        if date_from:
+            where.append(Message.date >= to_iso(date_from).isoformat())
+        if date_to:
+            where.append(Message.date < (to_iso(date_to) + timedelta(days=1)).isoformat())
 
-    with get_session() as sess:
-        base = select(
-            Message.message_id,
-            Message.chat_id,
-            Message.user_id,
-            Message.date,
-            Message.text
-        ).join(Chat, Chat.chat_id == Message.chat_id)
+        if q:
+            where.append(func.lower(Message.text).like(f"%{q.lower()}%"))
 
-        if where:
-            from sqlmodel import and_  # локальный импорт
-            base = base.where(and_(*where))
+        offset = (int(st.session_state.get("browser_page", 1)) - 1) * int(per_page)
 
-        total = sess.exec(select(func.count()).select_from(base.subquery())).one()
-        page_stmt = base.order_by(Message.date.desc()).limit(int(per_page)).offset(int(offset))
-        rows = sess.exec(page_stmt).all()
+        with get_session() as sess:
+            base = select(
+                Message.message_id,
+                Message.chat_id,
+                Message.user_id,
+                Message.date,
+                Message.text,
+            ).join(Chat, Chat.chat_id == Message.chat_id)
 
-        # подтянуть имена пользователей
-        uids = [r.user_id for r in rows if r.user_id is not None]
-        users = {}
-        if uids:
-            urows = sess.exec(select(User.user_id, User.username, User.first_name, User.last_name).where(User.user_id.in_(uids))).all()
-            for uid, un, fn, ln in urows:
-                users[uid] = un or " ".join(filter(None, [fn, ln])) or str(uid)
+            if where:
+                from sqlmodel import and_  # локальный импорт
+                base = base.where(and_(*where))
 
-    st.caption(f"Найдено: {total} сообщений. Страниц: {max(1, math.ceil(total/int(per_page)))}")
+            total = sess.exec(select(func.count()).select_from(base.subquery())).one()
+            page_stmt = base.order_by(Message.date.desc()).limit(int(per_page)).offset(int(offset))
+            rows = sess.exec(page_stmt).all()
 
-    if rows:
-        df = pd.DataFrame([
-            {
-                "дата": r.date,
-                "пользователь": users.get(r.user_id, r.user_id),
-                "chat_id": r.chat_id,
-                "msg_id": r.message_id,
-                "текст": r.text,
-            }
-            for r in rows
-        ])
-        st.dataframe(df, use_container_width=True)
+            # подтянуть имена пользователей
+            uids = [r.user_id for r in rows if r.user_id is not None]
+            users = {}
+            if uids:
+                urows = sess.exec(
+                    select(User.user_id, User.username, User.first_name, User.last_name).where(
+                        User.user_id.in_(uids)
+                    )
+                ).all()
+                for uid, un, fn, ln in urows:
+                    users[uid] = un or " ".join(filter(None, [fn, ln])) or str(uid)
 
-        c1, c2, c3 = st.columns([1, 1, 1])
-        total_pages = max(1, math.ceil(total / int(per_page)))
-        with c1:
-            if st.button("« Назад", disabled=int(st.session_state["browser_page"]) <= 1, key="db_prev"):
-                st.session_state["browser_page"] -= 1
-                st.rerun()
-        with c2:
-            st.write(f"Стр. {st.session_state['browser_page']} из {total_pages}")
-        with c3:
-            if st.button("Вперёд »", disabled=int(st.session_state["browser_page"]) >= total_pages, key="db_next"):
-                pass
-            else:
-                if int(st.session_state["browser_page"]) < total_pages:
-                    st.session_state["browser_page"] += 1
+        st.caption(
+            f"Найдено: {total} сообщений. Страниц: {max(1, math.ceil(total/int(per_page)))}"
+        )
+
+        if rows:
+            df = pd.DataFrame([
+                {
+                    "дата": r.date,
+                    "пользователь": users.get(r.user_id, r.user_id),
+                    "chat_id": r.chat_id,
+                    "msg_id": r.message_id,
+                    "текст": r.text,
+                }
+                for r in rows
+            ])
+            st.dataframe(df, use_container_width=True)
+
+            c1, c2, c3 = st.columns([1, 1, 1])
+            total_pages = max(1, math.ceil(total / int(per_page)))
+            with c1:
+                if st.button(
+                    "« Назад",
+                    disabled=int(st.session_state["browser_page"]) <= 1,
+                    key="db_prev",
+                ):
+                    st.session_state["browser_page"] -= 1
+                    st.session_state["browser_run_query"] = True
                     st.rerun()
-    else:
-        st.info("Нет данных по выбранным фильтрам.")
+            with c2:
+                st.write(f"Стр. {st.session_state['browser_page']} из {total_pages}")
+            with c3:
+                if st.button(
+                    "Вперёд »",
+                    disabled=int(st.session_state["browser_page"]) >= total_pages,
+                    key="db_next",
+                ):
+                    if int(st.session_state["browser_page"]) < total_pages:
+                        st.session_state["browser_page"] += 1
+                        st.session_state["browser_run_query"] = True
+                        st.rerun()
+        else:
+            st.info("Нет данных по выбранным фильтрам.")
+
+        st.session_state["browser_run_query"] = False
 
 # ------------------------------------------------------------------------------
 # 5) СПРАВОЧНИК ЧАТОВ (БД-мета)
