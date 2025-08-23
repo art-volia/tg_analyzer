@@ -1,0 +1,11 @@
+{
+  "name": "tg‑analyzer codespace",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "postCreateCommand": "pip install poetry && poetry install",
+  "forwardPorts": [8501],
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "8gb",
+    "storage": "16gb"
+  }
+}
