@@ -3,7 +3,7 @@ name: Автопул и деплой после merge в main
 on:
   push:
     branches: ["main"]
-
+  workflow_dispatch:
 jobs:
   deploy:
     runs-on: ubuntu-latest
