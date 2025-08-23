@@ -549,6 +549,12 @@ with tabs[4]:
         chat_label = st.selectbox("Выберите чат", ["(не выбран)"] + list(chat_map.keys()), key="db_chat_select")
         chat_id = chat_map.get(chat_label) if chat_label != "(не выбран)" else None
 
+        user_id_raw = st.text_input("ID контакта", key="db_user_id")
+        try:
+            user_id = int(user_id_raw) if user_id_raw.strip() else None
+        except ValueError:
+            user_id = None
+
         st.divider()
         page = st.number_input(
             "Страница",
@@ -567,6 +573,7 @@ with tabs[4]:
             "per_page": per_page,
             "q": q,
             "chat_id": chat_id,
+            "user_id": user_id,
         }
         st.session_state["browser_page"] = int(page)
         st.session_state["browser_run_query"] = True
@@ -580,11 +587,15 @@ with tabs[4]:
         per_page = filters.get("per_page", 100)
         q = filters.get("q")
         chat_id = filters.get("chat_id")
+        user_id = filters.get("user_id")
 
         # WHERE-условия
         where = []
         if chat_id:
             where.append(Message.chat_id == chat_id)
+
+        if user_id is not None:
+            where.append(Message.user_id == user_id)
 
         if kind != "любой":
             if kind == "канал":
@@ -611,6 +622,7 @@ with tabs[4]:
             base = select(
                 Message.message_id,
                 Message.chat_id,
+                Chat.title.label("chat_title"),
                 Message.user_id,
                 Message.date,
                 Message.text,
@@ -645,7 +657,7 @@ with tabs[4]:
                 {
                     "дата": r.date,
                     "пользователь": users.get(r.user_id, r.user_id),
-                    "chat_id": r.chat_id,
+                    "чат": r.chat_title or r.chat_id,
                     "msg_id": r.message_id,
                     "текст": r.text,
                 }
