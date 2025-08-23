@@ -4,19 +4,22 @@ on:
   push:
     branches: ["main"]
   workflow_dispatch:
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Настроить SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Настроить SSH Agent
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Проверка SSH-соединения
+        run: ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} echo "SSH is working"
 
       - name: Деплой на сервер
         run: |
@@ -25,4 +28,4 @@ jobs:
             git pull origin main && \
             source .venv/bin/activate && \
             pip install -r requirements.txt && \
-            nohup streamlit run dashboard_app.py --server.address 0.0.0.0 --server.port 8501 &"
+            nohup streamlit run dashboard_app.py --server.address 0.0.0.0 --server.port 8501 > streamlit.log 2>&1 &"
