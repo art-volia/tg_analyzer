@@ -312,40 +312,29 @@ with tabs[2]:
         _cfg_to_state()
         st.session_state["cfg_state_inited"] = True
 
-    col_reload_1, col_reload_2 = st.columns([1,2])
+    col_reload_1, col_reload_2 = st.columns([1, 2])
     with col_reload_1:
-        if st.button("⟳ Обновить из config.yaml", key="btn_reload_cfg",
-                     help="Перечитать файл и перезаполнить поля формы из файла. Несохранённые изменения в форме будут потеряны."):
+        if st.button(
+            "⟳ Обновить из config.yaml",
+            key="btn_reload_cfg",
+            help="Перечитать файл и перезаполнить поля формы из файла. Несохранённые изменения в форме будут потеряны.",
+        ):
             _cfg_to_state()
             st.rerun()
     with col_reload_2:
         try:
-            from pathlib import Path as _P
-            from datetime import datetime
-            ts = datetime.fromtimestamp(_P(CFG_PATH).stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+            ts = datetime.fromtimestamp(Path(CFG_PATH).stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
             st.caption(f"Файл: {CFG_PATH} • обновлён: {ts}")
         except Exception:
             st.caption("Файл config.yaml не найден")
-# читаем cfg и mtime
+
+    # читаем cfg и mtime
     cfg = load_cfg()
     try:
         cfg_mtime = Path(CFG_PATH).stat().st_mtime
     except Exception:
         cfg_mtime = 0
     nonce = str(int(cfg_mtime))  # используем как суффикс key
-
-    # Кнопка «обновить из файла» — просто перерендер
-    row_reload_1, row_reload_2 = st.columns([1,2])
-    with row_reload_1:
-        if st.button("⟳ Обновить из config.yaml", key=f"btn_reload_cfg_{nonce}",
-                     help="Перечитать файл и перезаполнить поля формы из файла. Несохранённые правки на экране перезатрутся."):
-            st.rerun()
-    with row_reload_2:
-        try:
-            ts = datetime.fromtimestamp(Path(CFG_PATH).stat().st_mtime).strftime('%Y-%m-%d %H:%M:%S')
-            st.caption(f"Файл: {CFG_PATH} • обновлён: {ts}")
-        except Exception:
-            st.caption("Файл config.yaml не найден")
 
     st.write("**Чаты** (список @username или числовых ID):")
     chats = cfg.get("chats", []) or []
