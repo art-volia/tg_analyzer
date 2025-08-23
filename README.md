@@ -1,4 +1,4 @@
-# RUN — пошаговый запуск
+# Telegram Analyzer
 
 ## Быстрый старт (без Docker)
 ```bash
@@ -11,18 +11,31 @@ streamlit run dashboard_app.py --server.address 0.0.0.0 --server.port 8501
 ```
 1) В панели (ENV) заполните ключи и сохраните.
 2) Во вкладке «Настройки» добавьте чаты и лимиты → сохранить.
-3) Во вкладке «Состояние» — запустить воркер.
+3) Во вкладке «Состояние» кнопками «Запустить»/«Остановить» управляйте воркером.
+
+Панель работает независимо от воркера — интерфейс доступен даже при остановленном воркере.
+
+## Проверка статуса воркера
+- Цветовой индикатор в панели: зелёный — воркер активен, красный — остановлен.
+- Файл `runtime/worker.pid`: если существует, воркер запущен.
+
+## Обновление системы
+```bash
+git pull
+pip install -r requirements.txt  # при необходимости обновить зависимости
+systemctl restart tg-dashboard   # перезапустить панель
+```
 
 ## Расширенная панель
 ```bash
 streamlit run dashboard_plus.py --server.address 0.0.0.0 --server.port 8501
 ```
 
-## Systemd (пример)
-Скопируйте примеры `SYSTEMD_*` в `/etc/systemd/system/`, поправьте пользователя/пути, затем:
+## Systemd (панель)
+Скопируйте пример `SYSTEMD_DASHBOARD_EXAMPLE.txt` в `/etc/systemd/system/tg-dashboard.service`, поправьте пользователя/пути, затем:
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now tg-worker tg-dashboard
+sudo systemctl enable --now tg-dashboard
 ```
 
 ## Docker
@@ -42,3 +55,4 @@ python migrate.py data/db.sqlite "postgresql+psycopg2://user:pass@host:5432/tgan
 ## Примечания
 - Соблюдайте ToS Telegram и местные законы о данных.
 - Уважайте FLOOD_WAIT — проект настроен на «лайтовый» сбор.
+
