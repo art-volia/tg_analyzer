@@ -11,6 +11,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
 import time
+import psutil
 os.environ["TZ"] = "Europe/Bucharest"
 try:
     time.tzset()
@@ -37,27 +38,34 @@ RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 HEARTBEAT_PATH = RUNTIME_DIR / "worker_heartbeat.json"
 import sys, atexit
 
-LOCK_FILE = RUNTIME_DIR / "worker.lock"
+PID_FILE = RUNTIME_DIR / "worker.pid"
 
-if LOCK_FILE.exists():
-
-    print("⚠️  Worker already running (lock file exists). Exit.")
-
-    os._exit(1)
-
-LOCK_FILE.write_text(str(os.getpid()))
-
-def _unlock():
-
+if PID_FILE.exists():
     try:
-
-        LOCK_FILE.unlink(missing_ok=True)
-
+        existing_pid = int(PID_FILE.read_text().strip())
     except Exception:
+        existing_pid = None
+    if existing_pid and psutil.pid_exists(existing_pid):
+        print("⚠️  Worker already running (pid file exists). Exit.")
+        os._exit(1)
 
+PID_FILE.write_text(str(os.getpid()))
+
+def _cleanup():
+    try:
+        PID_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
+    try:
+        HEARTBEAT_PATH.unlink(missing_ok=True)
+    except Exception:
         pass
 
-atexit.register(_unlock)
+def _cleanup_and_exit(*_):
+    _cleanup()
+    os._exit(0)
+
+atexit.register(_cleanup)
 
 STARTED_AT = datetime.now(BUCHAREST_TZ).isoformat()
 
@@ -100,15 +108,8 @@ def write_heartbeat(*, last_action="tick", mode=None, last_chat_id=None, saved_m
     except Exception:
         pass
 
-def cleanup_and_exit(*_):
-    try:
-        HEARTBEAT_PATH.unlink(missing_ok=True)
-    except Exception:
-        pass
-    os._exit(0)
-
-signal.signal(signal.SIGTERM, cleanup_and_exit)
-signal.signal(signal.SIGINT, cleanup_and_exit)
+signal.signal(signal.SIGTERM, _cleanup_and_exit)
+signal.signal(signal.SIGINT, _cleanup_and_exit)
 
 # -----------------------------
 # ВСПОМОГАТЕЛЬНЫЕ
