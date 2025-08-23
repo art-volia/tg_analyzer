@@ -12,15 +12,6 @@ def setup_logger(log_path: str):
                 return dt.strftime(datefmt)
             return dt.isoformat()
 
-    import logging, pytz
-    from datetime import datetime
-    class TZFormatter(logging.Formatter):
-        def formatTime(self, record, datefmt=None):
-            dt = datetime.fromtimestamp(record.created, tz=ZoneInfo("Europe/Bucharest"))
-            if datefmt:
-                return dt.strftime(datefmt)
-            return dt.isoformat()
-    
     pathlib.Path(log_path).parent.mkdir(parents=True, exist_ok=True)
     logger.remove()
     logger.add(log_path, rotation="20 MB", retention="15 days", enqueue=True)
