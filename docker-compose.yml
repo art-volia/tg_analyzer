@@ -11,12 +11,3 @@ services:
       - ./:/app
     restart: unless-stopped
 
-  worker:
-    build: .
-    container_name: tg-worker
-    env_file:
-      - .env
-    command: ["python", "worker.py"]
-    volumes:
-      - ./:/app
-    restart: unless-stopped
