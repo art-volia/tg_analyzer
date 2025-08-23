@@ -396,11 +396,17 @@ async def main():
         if USE_TAKEOUT:
             async with client_ctx.takeout() as client:
                 for c in chats:
-                    await process_chat(client, c, acc_id)
+                    try:
+                        await process_chat(client, c, acc_id)
+                    except Exception:
+                        logger.exception(f"failed to process {c}")
                     sleep_range(*PCHAT)
         else:
             for c in chats:
-                await process_chat(client_ctx, c, acc_id)
+                try:
+                    await process_chat(client_ctx, c, acc_id)
+                except Exception:
+                    logger.exception(f"failed to process {c}")
                 sleep_range(*PCHAT)
 
     write_heartbeat(last_action="finish", mode="done")
