@@ -276,13 +276,18 @@ with tabs[0]:
             st.metric("Последний тик (сек назад)", "—")
 
     with status_col3:
-        if hb:
-            st.caption(
-                f"PID: {hb.get('pid')} • mode: {hb.get('mode')} • last_action: {hb.get('last_action')} • "
-                f"last_chat_id: {hb.get('last_chat_id')} • saved(last batch): {hb.get('saved_messages_total')}"
-            )
-        else:
-            st.caption("Нет heartbeat — запустите worker или обновите страницу.")
+        pid_val = hb.get('pid') if hb else (get_worker_pid() or "—")
+        mode_val = hb.get('mode') if hb else "—"
+        last_action_val = hb.get('last_action') if hb else "—"
+        last_chat_id_val = hb.get('last_chat_id') if hb else "—"
+        saved_val = hb.get('saved_messages_total') if hb else "—"
+        st.caption(
+            f"PID: {pid_val} • mode: {mode_val} • last_action: {last_action_val} • "
+            f"last_chat_id: {last_chat_id_val} • saved(last batch): {saved_val}"
+        )
+
+    if hb is None:
+        st.warning("Heartbeat не найден — воркер не запущен или упал")
 
     # Метрики БД
     st.divider()
