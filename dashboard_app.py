@@ -46,6 +46,9 @@ DICT_COUNTRIES_PATH = "countries.yaml"
 DICT_LANGUAGES_PATH = "languages.yaml"
 DICT_TOPICS_PATH = "topics.yaml"
 
+SESSIONS_DIR = Path("sessions")
+SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+
 
 # ------------------------------------------------------------------------------
 # Утилиты
@@ -185,7 +188,7 @@ def save_list(path: str, items: list[str]) -> None:
 # ------------------------------------------------------------------------------
 async def _fetch_dialogs(session_name: str, api_id: int, api_hash: str, limit: int = 500):
     items = []
-    async with TelegramClient(session_name, api_id, api_hash) as client:
+    async with TelegramClient(str(SESSIONS_DIR / session_name), api_id, api_hash) as client:
         async for dlg in client.iter_dialogs(limit=limit):
             ent = dlg.entity
             title = getattr(ent, "title", None) or getattr(ent, "username", None) or str(ent.id)

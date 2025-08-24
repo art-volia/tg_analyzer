@@ -32,6 +32,9 @@ BUCHAREST_TZ = ZoneInfo("Europe/Bucharest")
 RUNTIME_DIR = Path("runtime")
 RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 HEARTBEAT_PATH = RUNTIME_DIR / "worker_heartbeat.json"
+
+SESSIONS_DIR = Path("sessions")
+SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 import sys, atexit
 
 PID_FILE = RUNTIME_DIR / "worker.pid"
@@ -70,6 +73,7 @@ load_dotenv()
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 SESSION_NAME = os.getenv("SESSION_NAME", "research_account")
+SESSION_PATH = SESSIONS_DIR / SESSION_NAME
 
 with open("config.yaml", "r", encoding="utf-8") as f:
     CFG = yaml.safe_load(f)
@@ -386,7 +390,7 @@ async def main():
     write_heartbeat(last_action="start", mode="init")
     chats = CFG.get("chats", []) or []
 
-    async with TelegramClient(SESSION_NAME, API_ID, API_HASH) as client_ctx:
+    async with TelegramClient(str(SESSION_PATH), API_ID, API_HASH) as client_ctx:
         # создаём/получаем аккаунт
         with get_session() as sess:
             acc = get_or_create_account(sess)
