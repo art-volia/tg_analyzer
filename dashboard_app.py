@@ -312,7 +312,12 @@ with tabs[2]:
     # === Перезагрузка формы из config.yaml ===
     def _cfg_to_state():
         cfg = load_cfg()
-        st.session_state["cfg_chats"] = "\n".join(map(str, cfg.get("chats", [])))
+        try:
+            cfg_mtime = Path(CFG_PATH).stat().st_mtime
+        except Exception:
+            cfg_mtime = 0
+        nonce = str(int(cfg_mtime))
+        st.session_state[f"chats_text_{nonce}"] = "\n".join(map(str, cfg.get("chats", [])))
         st.session_state["cfg_batch_lo"] = int(cfg["limits"]["batch_size_range"][0])
         st.session_state["cfg_batch_hi"] = int(cfg["limits"]["batch_size_range"][1])
         st.session_state["cfg_pbb_lo"] = float(cfg["limits"]["pause_between_batches_sec"][0])
