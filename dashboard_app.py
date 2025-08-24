@@ -45,6 +45,7 @@ PID_FILE = RUNTIME_DIR / "worker.pid"
 DICT_COUNTRIES_PATH = "countries.yaml"
 DICT_LANGUAGES_PATH = "languages.yaml"
 DICT_TOPICS_PATH = "topics.yaml"
+WORKER_LOG_PATH = "worker.log"
 
 
 # ------------------------------------------------------------------------------
@@ -63,7 +64,7 @@ def is_worker_running() -> bool:
 
 
 def start_worker() -> None:
-    with open("worker.log", "ab") as log:
+    with open(WORKER_LOG_PATH, "ab") as log:
         proc = subprocess.Popen([sys.executable, "worker.py"], stdout=log, stderr=subprocess.STDOUT)
     PID_FILE.write_text(str(proc.pid))
 
@@ -202,8 +203,6 @@ tabs = st.tabs([
 # ------------------------------------------------------------------------------
 with tabs[0]:
     st.subheader("Состояние воркера")
-    cfg = load_cfg()
-    log_path = cfg.get("storage", {}).get("log_path", "logs/app.log")
 
     col_run, col_stop, col_refresh = st.columns([1, 1, 1])
     with col_run:
@@ -282,15 +281,29 @@ with tabs[0]:
     # Хвост лога воркера
     st.divider()
     st.caption("Последние строки лога воркера:")
-    try:
-        if os.path.exists(log_path):
-            with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
-                lines = f.readlines()[-200:]
-            st.code("".join(lines) or "(лог пуст)", language="log")
-        else:
-            st.info(f"Лог-файл пока не создан: {log_path}")
-    except Exception as e:
-        st.error(f"Не удалось прочитать лог: {e}")
+    follow_worker = st.toggle(
+        "Следить в реальном времени (1сек)", value=False, key="worker_follow"
+    )
+    worker_placeholder = st.empty()
+
+    def render_worker_log():
+        try:
+            if os.path.exists(WORKER_LOG_PATH):
+                with open(WORKER_LOG_PATH, "r", encoding="utf-8", errors="ignore") as f:
+                    lines = f.readlines()[-200:]
+                worker_placeholder.code("".join(lines) or "(лог пуст)", language="log")
+            else:
+                worker_placeholder.info(
+                    f"Лог-файл пока не создан: {WORKER_LOG_PATH}"
+                )
+        except Exception as e:
+            worker_placeholder.error(f"Не удалось прочитать лог: {e}")
+
+    render_worker_log()
+    if follow_worker:
+        for _ in range(30):  # ~30 секунд
+            render_worker_log()
+            time.sleep(1)
 
 # ------------------------------------------------------------------------------
 # 1) ЛОГИ
