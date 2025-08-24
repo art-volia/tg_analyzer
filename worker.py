@@ -47,7 +47,7 @@ if PID_FILE.exists():
         existing_pid = None
     if existing_pid and psutil.pid_exists(existing_pid):
         print("⚠️  Worker already running (pid file exists). Exit.")
-        os._exit(1)
+        sys.exit(1)
 
 PID_FILE.write_text(str(os.getpid()))
 
@@ -61,9 +61,10 @@ def _cleanup():
     except Exception:
         pass
 
+
 def _cleanup_and_exit(*_):
-    _cleanup()
-    os._exit(0)
+    sys.exit(0)
+
 
 atexit.register(_cleanup)
 
@@ -71,15 +72,59 @@ STARTED_AT = datetime.now(BUCHAREST_TZ).isoformat()
 
 # --- ENV/CFG ---
 load_dotenv()
-API_ID = int(os.getenv("API_ID"))
+API_ID_STR = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
+if not API_ID_STR or not API_HASH:
+    print("⚠️  API_ID or API_HASH not set in environment. Exiting.")
+    sys.exit(1)
+try:
+    API_ID = int(API_ID_STR)
+except ValueError:
+    print("⚠️  API_ID must be an integer. Exiting.")
+    sys.exit(1)
 SESSION_NAME = os.getenv("SESSION_NAME", "research_account")
 
-with open("config.yaml", "r", encoding="utf-8") as f:
-    CFG = yaml.safe_load(f)
+DEFAULT_CFG = {
+    "storage": {"log_path": "logs/app.log"},
+    "limits": {
+        "batch_size_range": [60, 120],
+        "pause_between_batches_sec": [10.5, 3.05],
+        "pause_between_chats_sec": [6.0, 15.0],
+        "micro_pause_every_n_msgs": [30, 50],
+        "micro_pause_ms": [200, 500],
+    },
+    "behavior": {
+        "use_takeout_for_bulk_exports": False,
+        "include_dialogs": False,
+    },
+    "chats": [],
+}
+CFG_PATH = Path("config.yaml")
+if CFG_PATH.exists():
+    with CFG_PATH.open("r", encoding="utf-8") as f:
+        CFG = yaml.safe_load(f) or DEFAULT_CFG
+else:
+    print("⚠️  config.yaml not found, using default config.")
+    CFG = DEFAULT_CFG
+    try:
+        CFG_PATH.write_text(yaml.safe_dump(CFG, allow_unicode=True), encoding="utf-8")
+    except Exception:
+        pass
 
 LOG_PATH = CFG["storage"]["log_path"]
 logger = setup_logger(LOG_PATH)
+
+session_file = Path(f"{SESSION_NAME}.session")
+if not session_file.exists():
+    logger.error("No session found")
+    sys.exit(1)
+
+try:
+    with get_session() as sess:
+        sess.exec("SELECT 1")
+except Exception as e:
+    logger.error(f"Database connection failed: {e}")
+    sys.exit(1)
 
 BATCH_MIN, BATCH_MAX = CFG["limits"]["batch_size_range"]
 PBATCH = CFG["limits"]["pause_between_batches_sec"]
