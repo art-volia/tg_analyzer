@@ -1,6 +1,9 @@
 .venv/
 __pycache__/
+runtime/
+logs/
 *.log
+*.pid
 *.pyc
 *.pyo
 .DS_Store
