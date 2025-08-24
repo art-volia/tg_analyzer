@@ -63,22 +63,49 @@ def is_worker_running() -> bool:
 
 
 def start_worker() -> None:
-    with open("worker.log", "ab") as log:
-        proc = subprocess.Popen([sys.executable, "worker.py"], stdout=log, stderr=subprocess.STDOUT)
+    base_dir = Path(__file__).resolve().parent
+    worker_path = base_dir / "worker.py"
+    log_path = base_dir / "worker.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(log_path, "ab") as log:
+        proc = subprocess.Popen(
+            [sys.executable, str(worker_path)],
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            cwd=base_dir,
+        )
     PID_FILE.write_text(str(proc.pid))
+    time.sleep(1.0)
+    if proc.poll() is not None:
+        try:
+            tail = log_path.read_text(encoding="utf-8", errors="ignore").splitlines()[-20:]
+            st.error("Worker failed to start:\n" + "\n".join(tail))
+        except Exception:
+            st.error("Worker failed to start")
+        try:
+            PID_FILE.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def stop_worker() -> None:
     pid = get_worker_pid()
     if pid and psutil.pid_exists(pid):
+        proc = psutil.Process(pid)
         try:
-            os.kill(pid, signal.SIGTERM)
-        except OSError:
+            proc.send_signal(signal.SIGTERM)
+            try:
+                proc.wait(10)
+            except psutil.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+        except psutil.NoSuchProcess:
             pass
-    try:
-        PID_FILE.unlink()
-    except FileNotFoundError:
-        pass
+    for path in (PID_FILE, HEARTBEAT_PATH):
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def read_heartbeat():
