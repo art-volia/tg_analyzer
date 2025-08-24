@@ -277,7 +277,7 @@ with tabs[0]:
         if last_dt:
             st.caption(f"Последнее сообщение в базе: {last_dt}")
     except Exception as e:
-        st.warning(f"Не удалось получить метрики БД: {e}")
+        st.warning(f"Нет подключения к БД: {e}")
 
     # Хвост лога воркера
     st.divider()

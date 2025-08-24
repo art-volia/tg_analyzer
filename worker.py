@@ -25,10 +25,6 @@ from telethon.tl.types import User as TLUser, Channel, Chat as TLChat
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 
-from db import (
-    get_session, Account, User, Chat, Message, Cursor, Window,
-    AccountChat, ChatBot, DirectPeer
-)
 from utils import setup_logger, sleep_range, jitter_ms
 
 # --- Константы/пути ---
@@ -80,6 +76,15 @@ with open("config.yaml", "r", encoding="utf-8") as f:
 
 LOG_PATH = CFG["storage"]["log_path"]
 logger = setup_logger(LOG_PATH)
+
+try:
+    from db import (
+        get_session, Account, User, Chat, Message, Cursor, Window,
+        AccountChat, ChatBot, DirectPeer, engine
+    )
+except Exception as e:
+    logger.error(f"Не удалось создать engine: {e}")
+    sys.exit(1)
 
 BATCH_MIN, BATCH_MAX = CFG["limits"]["batch_size_range"]
 PBATCH = CFG["limits"]["pause_between_batches_sec"]
